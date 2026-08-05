@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,6 +18,9 @@ import (
 	"github.com/ttacon/chalk"
 	"golang.org/x/sys/windows"
 )
+
+//go:embed offsets.json
+var embeddedOffsets []byte
 
 type Matrix [4][4]float32
 
@@ -128,19 +132,9 @@ func worldToScreen(viewMatrix Matrix, position Vector3) (float32, float32) {
 
 func getOffsets() Offset {
 	var offsets Offset
-
-	// Open the file
-	offsetsJson, err := os.Open("offsets.json")
+	err := json.Unmarshal(embeddedOffsets, &offsets)
 	if err != nil {
-		fmt.Println("Error opening offsets.json", err)
-		return offsets
-	}
-	defer offsetsJson.Close()
-
-	// Decode the JSON
-	err = json.NewDecoder(offsetsJson).Decode(&offsets)
-	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
+		fmt.Println("Error decoding embedded offsets JSON:", err)
 		return offsets
 	}
 	return offsets
@@ -564,7 +558,7 @@ func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
 
 func cliMenu() {
 	for {
-		fmt.Print(chalk.Magenta.Color("          ____             \n  ___ ___|___ \\ ____  ___  \n / __/ __| __) / _  |/ _ \\ \n| (__\\__ \\/ __/ (_| | (_) |\n \\___|___/_____\\__, |\\___/ \n               |___/       \n"))
+		fmt.Print(chalk.Magenta.Color("          ____             \n   ___ ___|___ \\ ____  ___  \n / __/ __| __) / _  |/ _ \\ \n| (__\\__ \\/ __/ (_| | (_) |\n \\___|___/_____\\__, |\\___/ \n               |___/       \n"))
 		fmt.Println(chalk.Dim.TextStyle("\t\tby bqj - v1.6\n"))
 		if teamCheck {
 			fmt.Println(chalk.Green.Color("[1] Team check [ON]"))
