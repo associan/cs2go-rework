@@ -84,6 +84,7 @@ var (
 	createCompatibleDC         = gdi32.NewProc("CreateCompatibleDC")
 	createSolidBrush           = gdi32.NewProc("CreateSolidBrush")
 	createPen                  = gdi32.NewProc("CreatePen")
+	GetAsyncKeyState           = user32.NewProc("GetAsyncKeyState")
 )
 
 var (
@@ -98,7 +99,6 @@ var (
 )
 
 func init() {
-	// Ensure main() runs on the main thread.
 	runtime.LockOSThread()
 }
 
@@ -192,22 +192,19 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		entityHeadTop    Vector3
 		entityHeadBottom Vector3
 	)
-	// localPlayerP
+
 	err = read(procHandle, clientDll+offsets.DwLocalPlayerPawn, &localPlayerP)
 	if err != nil {
 		return entities
 	}
-	// localPlayerGameScene
 	err = read(procHandle, localPlayerP+offsets.M_pGameSceneNode, &localPlayerGameScene)
 	if err != nil {
 		return entities
 	}
-	// localPlayerSceneOrigin
 	err = read(procHandle, localPlayerGameScene+offsets.M_nodeToWorld, &localPlayerSceneOrigin)
 	if err != nil {
 		return entities
 	}
-	// viewMatrix
 	err = read(procHandle, clientDll+offsets.DwViewMatrix, &viewMatrix)
 	if err != nil {
 		return entities
@@ -216,7 +213,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		var tempEntity Entity
 		var entityBones map[string]Vector2 = make(map[string]Vector2)
 		var sanitizedName strings.Builder
-		// listEntry
+
 		err = read(procHandle, entityList+uintptr((8*(i&0x7FFF)>>9)+16), &listEntry)
 		if err != nil {
 			return entities
@@ -224,7 +221,8 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if listEntry == 0 {
 			continue
 		}
-		// entityController
+
+		// Updated stride from 120 to 112
 		err = read(procHandle, listEntry+uintptr(112)*uintptr(i&0x1FF), &entityController)
 		if err != nil {
 			return entities
@@ -232,7 +230,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityController == 0 {
 			continue
 		}
-		// entityControllerPawn
+
 		err = read(procHandle, entityController+offsets.M_hPlayerPawn, &entityControllerPawn)
 		if err != nil {
 			return entities
@@ -240,7 +238,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityControllerPawn == 0 {
 			continue
 		}
-		// listEntry
+
 		err = read(procHandle, entityList+uintptr(0x8*((entityControllerPawn&0x7FFF)>>9)+16), &listEntry)
 		if err != nil {
 			return entities
@@ -248,7 +246,8 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if listEntry == 0 {
 			continue
 		}
-		// entityPawn
+
+		// Updated stride from 120 to 112
 		err = read(procHandle, listEntry+uintptr(112)*uintptr(entityControllerPawn&0x1FF), &entityPawn)
 		if err != nil {
 			return entities
@@ -259,7 +258,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityPawn == localPlayerP {
 			continue
 		}
-		// entityLifeState
+
 		err = read(procHandle, entityPawn+offsets.M_lifeState, &entityLifeState)
 		if err != nil {
 			return entities
@@ -267,7 +266,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityLifeState != 256 {
 			continue
 		}
-		// entityTeam
+
 		err = read(procHandle, entityPawn+offsets.M_iTeamNum, &entityTeam)
 		if err != nil {
 			return entities
@@ -276,7 +275,6 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 			continue
 		}
 		if teamCheck {
-			// localTeam
 			err = read(procHandle, localPlayerP+offsets.M_iTeamNum, &localTeam)
 			if err != nil {
 				return entities
@@ -285,7 +283,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 				continue
 			}
 		}
-		// entityHealth
+
 		err = read(procHandle, entityPawn+offsets.M_iHealth, &entityHealth)
 		if err != nil {
 			return entities
@@ -293,12 +291,12 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityHealth < 1 || entityHealth > 100 {
 			continue
 		}
-		// entityNameAddress
+
 		err = read(procHandle, entityController+offsets.M_sSanitizedPlayerName, &entityNameAddress)
 		if err != nil {
 			return entities
 		}
-		// entityName
+
 		err = read(procHandle, entityNameAddress, &entityName)
 		if err != nil {
 			return entities
@@ -312,7 +310,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 			}
 		}
 		sanitizedNameStr = sanitizedName.String()
-		// gameScene
+
 		err = read(procHandle, entityPawn+offsets.M_pGameSceneNode, &gameScene)
 		if err != nil {
 			return entities
@@ -320,7 +318,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if gameScene == 0 {
 			continue
 		}
-		// entityBoneArray
+
 		err = read(procHandle, gameScene+offsets.M_modelState+offsets.M_boneArray, &entityBoneArray)
 		if err != nil {
 			return entities
@@ -328,12 +326,12 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		if entityBoneArray == 0 {
 			continue
 		}
-		// entityOrigin
+
 		err = read(procHandle, entityPawn+offsets.M_vOldOrigin, &entityOrigin)
 		if err != nil {
 			return entities
 		}
-		// boneArray
+
 		for boneName, boneIndex := range bones {
 			err = read(procHandle, entityBoneArray+uintptr(boneIndex)*32, &currentBone)
 			if err != nil {
@@ -400,7 +398,6 @@ func drawSkeleton(hdc win.HDC, pen uintptr, bones map[string]Vector2) {
 
 func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPen uintptr, rect Rectangle, hp int32, name string, headPos Vector3) {
 	if boxRendering {
-		// Box
 		win.SelectObject(hdc, win.HGDIOBJ(tPen))
 		win.MoveToEx(hdc, int(rect.Left), int(rect.Top), nil)
 		win.LineTo(hdc, int32(rect.Right), int32(rect.Top))
@@ -408,7 +405,6 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 		win.LineTo(hdc, int32(rect.Left), int32(rect.Bottom))
 		win.LineTo(hdc, int32(rect.Left), int32(rect.Top))
 
-		// Box outline
 		win.SelectObject(hdc, win.HGDIOBJ(oPen))
 		win.MoveToEx(hdc, int(rect.Left)-1, int(rect.Top)-1, nil)
 		win.LineTo(hdc, int32(rect.Right)-1, int32(rect.Top)+1)
@@ -423,7 +419,6 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 	}
 
 	if headCircle {
-		// Head with outline
 		radius := int32((int32(headPos.Z) - int32(headPos.Y)) / 2)
 		win.SelectObject(hdc, win.HGDIOBJ(oPen))
 		win.Ellipse(hdc, int32(headPos.X)-radius-1, int32(headPos.Y)-1, int32(headPos.X)+radius+1, int32(headPos.Z)+1)
@@ -434,12 +429,10 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 	}
 
 	if healthBarRendering {
-		// Health bar
 		win.SelectObject(hdc, win.HGDIOBJ(gPen))
 		win.MoveToEx(hdc, int(rect.Left)-4, int(rect.Bottom)+1-int(float64(int(rect.Bottom)+1-int(rect.Top))*float64(hp)/100.0), nil)
 		win.LineTo(hdc, int32(rect.Left)-4, int32(rect.Bottom)+1)
 
-		// Health bar outline
 		win.SelectObject(hdc, win.HGDIOBJ(oPen))
 		win.MoveToEx(hdc, int(rect.Left)-5, int(rect.Top)-1, nil)
 		win.LineTo(hdc, int32(rect.Left)-5, int32(rect.Bottom)+1)
@@ -449,10 +442,8 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 	}
 
 	if healthTextRendering {
-		// Health text
 		text, _ := windows.UTF16PtrFromString(fmt.Sprintf("%d", hp))
 		win.SetTextColor(hdc, win.RGB(byte(0), byte(255), byte(50)))
-		// Set text right alignment
 		setTextAlign.Call(uintptr(hdc), 0x00000002)
 		if healthBarRendering {
 			win.TextOut(hdc, int32(rect.Left)-8, int32(int(rect.Bottom)+1-int(float64(int(rect.Bottom)+1-int(rect.Top))*float64(hp)/100.0)), text, int32(len(fmt.Sprintf("%d", hp))))
@@ -462,10 +453,9 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 	}
 
 	if nameRendering {
-		// Name
 		text, _ := windows.UTF16PtrFromString(name)
 		win.SetTextColor(hdc, win.RGB(byte(255), byte(255), byte(255)))
-		setTextAlign.Call(uintptr(hdc), 0x00000006) // Set text alignment to center
+		setTextAlign.Call(uintptr(hdc), 0x00000006)
 		win.TextOut(hdc, int32(rect.Left)+int32((int32(rect.Right)-int32(rect.Left))/2), int32(rect.Top)-14, text, int32(len(name)))
 	}
 }
@@ -483,7 +473,6 @@ func windowProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintptr {
 }
 
 func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
-
 	className, err := windows.UTF16PtrFromString("cs2goWindow")
 	if err != nil {
 		logAndSleep("Error creating window class name", err)
@@ -495,7 +484,6 @@ func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
 		return 0
 	}
 
-	// Register window class
 	wc := win.WNDCLASSEX{
 		CbSize:        uint32(unsafe.Sizeof(win.WNDCLASSEX{})),
 		Style:         win.CS_HREDRAW | win.CS_VREDRAW,
@@ -515,7 +503,6 @@ func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
 		return 0
 	}
 
-	// Create window
 	hInstance := win.GetModuleHandle(nil)
 	hwnd := win.CreateWindowEx(
 		win.WS_EX_TOPMOST|win.WS_EX_NOACTIVATE|win.WS_EX_LAYERED,
@@ -540,100 +527,105 @@ func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
 	if result == 0 {
 		logAndSleep("Error setting layered window attributes", fmt.Errorf("%v", win.GetLastError()))
 	}
-	// Get the current extended window style
 	style := win.GetWindowLongPtr(hwnd, win.GWL_EXSTYLE)
-
-	// Add the WS_EX_TRANSPARENT style
 	style |= win.WS_EX_TRANSPARENT
-
-	// Set the new extended window style
 	win.SetWindowLongPtr(hwnd, win.GWL_EXSTYLE, style)
 
 	showCursor.Call(0)
-
-	// Show window
 	win.ShowWindow(hwnd, win.SW_SHOWDEFAULT)
 	return hwnd
 }
 
-func cliMenu() {
+func printStatus(label string, status bool) {
+	if status {
+		fmt.Printf("  %-25s %s\n", label, chalk.Green.Color("[ AÇIK ]"))
+	} else {
+		fmt.Printf("  %-25s %s\n", label, chalk.Red.Color("[ KAPALI ]"))
+	}
+}
+
+func renderUI() {
+	fmt.Print("\033[H\033[2J")
+	fmt.Print(chalk.Green.Color(`
+          ____             
+   ___ ___|___ \ ____  ___ 
+ / __/ __| __) / _  |/ _ \
+| (__\__ \/ __/ (_| | (_) |
+ \___|___/_____\\__, |\___/ 
+               |___/       
+`))
+	fmt.Println(chalk.Yellow.Color("       by associan - v1.7\n"))
+	fmt.Println(chalk.Cyan.Color("=========================================="))
+	fmt.Println(chalk.White.Color("          KISAYOL TUŞLARI (HOTKEYS)"))
+	fmt.Println(chalk.Cyan.Color("=========================================="))
+
+	printStatus("[F1] Box ESP", boxRendering)
+	printStatus("[F2] Skeleton ESP", skeletonRendering)
+	printStatus("[F3] Head Circle", headCircle)
+	printStatus("[F4] Team Check", teamCheck)
+	printStatus("[F5] Health Bar", healthBarRendering)
+	printStatus("[F6] Player Name", nameRendering)
+
+	fmt.Println(chalk.Cyan.Color("------------------------------------------"))
+	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat"))
+	fmt.Println(chalk.Cyan.Color("=========================================="))
+}
+
+func isKeyPressed(vKey int) bool {
+	ret, _, _ := GetAsyncKeyState.Call(uintptr(vKey))
+	return (ret & 0x0001) != 0
+}
+
+func listenHotkeys() {
 	for {
-		fmt.Print(chalk.Magenta.Color("          ____             \n   ___ ___|___ \\ ____  ___  \n / __/ __| __) / _  |/ _ \\ \n| (__\\__ \\/ __/ (_| | (_) |\n \\___|___/_____\\__, |\\___/ \n               |___/       \n"))
-		fmt.Println(chalk.Dim.TextStyle("\t\tby bqj - v1.6\n"))
-		if teamCheck {
-			fmt.Println(chalk.Green.Color("[1] Team check [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[1] Team check [OFF]"))
-		}
-		if headCircle {
-			fmt.Println(chalk.Green.Color("[2] Head circle [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[2] Head circle [OFF]"))
-		}
-		if skeletonRendering {
-			fmt.Println(chalk.Green.Color("[3] Skeleton rendering [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[3] Skeleton rendering [OFF]"))
-		}
-		if boxRendering {
-			fmt.Println(chalk.Green.Color("[4] Box rendering [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[4] Box rendering [OFF]"))
-		}
-		if healthBarRendering {
-			fmt.Println(chalk.Green.Color("[5] Health bar rendering [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[5] Health bar rendering [OFF]"))
-		}
-		if healthTextRendering {
-			fmt.Println(chalk.Green.Color("[6] Health text rendering [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[6] Health text rendering [OFF]"))
-		}
-		if nameRendering {
-			fmt.Println(chalk.Green.Color("[7] Name rendering [ON]"))
-		} else {
-			fmt.Println(chalk.Red.Color("[7] Name rendering [OFF]"))
-		}
-		fmt.Println(chalk.Cyan.Color("[8] Adjust frame delay [") + fmt.Sprint(frameDelay) + chalk.Cyan.Color("]"))
-		fmt.Println(chalk.Red.Color("[9] Exit"))
-		fmt.Print(chalk.Cyan.Color("[Enter selection]: "))
-		var input string
-		fmt.Scanln(&input)
-		switch input {
-		case "1":
-			teamCheck = !teamCheck
-		case "2":
-			headCircle = !headCircle
-		case "3":
-			skeletonRendering = !skeletonRendering
-		case "4":
+		updated := false
+
+		// VK_F1 = 0x70
+		if isKeyPressed(0x70) {
 			boxRendering = !boxRendering
-		case "5":
-			healthBarRendering = !healthBarRendering
-		case "6":
-			healthTextRendering = !healthTextRendering
-		case "7":
-			nameRendering = !nameRendering
-		case "8":
-			fmt.Println(chalk.Red.Color("Higer frame delay = lower performance impact but higher ESP latency"))
-			fmt.Print(chalk.Cyan.Color("[Enter frame delay]: "))
-			var delay uint32
-			fmt.Scanln(&delay)
-			frameDelay = delay
-		case "9":
-			os.Exit(0)
-		default:
-			fmt.Println(chalk.Red.Color("Invalid selection"))
-			time.Sleep(1 * time.Second)
+			updated = true
 		}
-		// Clear the console
-		fmt.Print("\033[H\033[2J")
+		// VK_F2 = 0x71
+		if isKeyPressed(0x71) {
+			skeletonRendering = !skeletonRendering
+			updated = true
+		}
+		// VK_F3 = 0x72
+		if isKeyPressed(0x72) {
+			headCircle = !headCircle
+			updated = true
+		}
+		// VK_F4 = 0x73
+		if isKeyPressed(0x73) {
+			teamCheck = !teamCheck
+			updated = true
+		}
+		// VK_F5 = 0x74
+		if isKeyPressed(0x74) {
+			healthBarRendering = !healthBarRendering
+			updated = true
+		}
+		// VK_F6 = 0x75
+		if isKeyPressed(0x75) {
+			nameRendering = !nameRendering
+			updated = true
+		}
+		// VK_END = 0x23
+		if isKeyPressed(0x23) {
+			os.Exit(0)
+		}
+
+		if updated {
+			renderUI()
+		}
+
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
 func main() {
-	go cliMenu()
+	renderUI()
+	go listenHotkeys()
 
 	screenWidth, _, _ := getSystemMetrics.Call(0)
 	screenHeight, _, _ := getSystemMetrics.Call(1)
@@ -644,8 +636,6 @@ func main() {
 		return
 	}
 	defer win.DestroyWindow(hwnd)
-
-	// win.SetCursor()
 
 	pid, err := findProcessId("cs2.exe")
 	if err != nil {
@@ -743,7 +733,6 @@ func main() {
 		}
 		win.BitBlt(hdc, 0, 0, int32(screenWidth), int32(screenHeight), win.HDC(memhdc), 0, 0, win.SRCCOPY)
 
-		// Delete the memory bitmap and device context
 		win.DeleteObject(win.HGDIOBJ(memBitmap))
 		win.DeleteDC(win.HDC(memhdc))
 	}
