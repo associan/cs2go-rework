@@ -76,6 +76,7 @@ type Offset struct {
 var (
 	user32                     = windows.NewLazySystemDLL("user32.dll")
 	gdi32                      = windows.NewLazySystemDLL("gdi32.dll")
+	kernel32                   = windows.NewLazySystemDLL("kernel32.dll")
 	getSystemMetrics           = user32.NewProc("GetSystemMetrics")
 	setLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
 	showCursor                 = user32.NewProc("ShowCursor")
@@ -85,6 +86,7 @@ var (
 	createSolidBrush           = gdi32.NewProc("CreateSolidBrush")
 	createPen                  = gdi32.NewProc("CreatePen")
 	GetAsyncKeyState           = user32.NewProc("GetAsyncKeyState")
+	beepProc                   = kernel32.NewProc("Beep")
 )
 
 var (
@@ -95,11 +97,22 @@ var (
 	nameRendering       bool   = true
 	healthBarRendering  bool   = true
 	healthTextRendering bool   = true
+	distanceRendering   bool   = true
 	frameDelay          uint32 = 15
 )
 
 func init() {
 	runtime.LockOSThread()
+}
+
+func playBeep(enabled bool) {
+	if enabled {
+		// Açıldığında yüksek frekanslı ince ses
+		beepProc.Call(800, 100)
+	} else {
+		// Kapandığında kalın ses
+		beepProc.Call(400, 100)
+	}
 }
 
 func logAndSleep(message string, err error) {
@@ -222,7 +235,6 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 			continue
 		}
 
-		// Updated stride from 120 to 112
 		err = read(procHandle, listEntry+uintptr(112)*uintptr(i&0x1FF), &entityController)
 		if err != nil {
 			return entities
@@ -247,7 +259,6 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 			continue
 		}
 
-		// Updated stride from 120 to 112
 		err = read(procHandle, listEntry+uintptr(112)*uintptr(entityControllerPawn&0x1FF), &entityPawn)
 		if err != nil {
 			return entities
@@ -361,7 +372,8 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		tempEntity.Health = entityHealth
 		tempEntity.Team = entityTeam
 		tempEntity.Name = sanitizedNameStr
-		tempEntity.Distance = entityOrigin.Dist(localPlayerSceneOrigin)
+		// Metre cinsinden mesafe hesabı
+		tempEntity.Distance = entityOrigin.Dist(localPlayerSceneOrigin) / 39.3700787
 		tempEntity.Position = Vector2{screenPosFeetX, screenPosFeetY}
 		tempEntity.Bones = entityBones
 		tempEntity.HeadPos = Vector3{screenPosHeadX, screenPosHeadTopY, screenPosHeadBottomY}
@@ -396,7 +408,7 @@ func drawSkeleton(hdc win.HDC, pen uintptr, bones map[string]Vector2) {
 	win.LineTo(hdc, int32(bones["hand_R"].X), int32(bones["hand_R"].Y))
 }
 
-func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPen uintptr, rect Rectangle, hp int32, name string, headPos Vector3) {
+func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPen uintptr, rect Rectangle, hp int32, name string, headPos Vector3, distance float32) {
 	if boxRendering {
 		win.SelectObject(hdc, win.HGDIOBJ(tPen))
 		win.MoveToEx(hdc, int(rect.Left), int(rect.Top), nil)
@@ -457,6 +469,14 @@ func renderEntityInfo(hdc win.HDC, tPen uintptr, gPen uintptr, oPen uintptr, hPe
 		win.SetTextColor(hdc, win.RGB(byte(255), byte(255), byte(255)))
 		setTextAlign.Call(uintptr(hdc), 0x00000006)
 		win.TextOut(hdc, int32(rect.Left)+int32((int32(rect.Right)-int32(rect.Left))/2), int32(rect.Top)-14, text, int32(len(name)))
+	}
+
+	if distanceRendering {
+		distStr := fmt.Sprintf("%.0fm", distance)
+		text, _ := windows.UTF16PtrFromString(distStr)
+		win.SetTextColor(hdc, win.RGB(byte(255), byte(255), byte(150)))
+		setTextAlign.Call(uintptr(hdc), 0x00000006)
+		win.TextOut(hdc, int32(rect.Left)+int32((int32(rect.Right)-int32(rect.Left))/2), int32(rect.Bottom)+2, text, int32(len(distStr)))
 	}
 }
 
@@ -554,7 +574,7 @@ func renderUI() {
  \___|___/_____\\__, |\___/ 
                |___/       
 `))
-	fmt.Println(chalk.Yellow.Color("       by associan - v1.7\n"))
+	fmt.Println(chalk.Yellow.Color("       by associan - v1.8\n"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
 	fmt.Println(chalk.White.Color("          KISAYOL TUŞLARI (HOTKEYS)"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
@@ -565,6 +585,7 @@ func renderUI() {
 	printStatus("[F4] Team Check", teamCheck)
 	printStatus("[F5] Health Bar", healthBarRendering)
 	printStatus("[F6] Player Name", nameRendering)
+	printStatus("[F7] Distance Display", distanceRendering)
 
 	fmt.Println(chalk.Cyan.Color("------------------------------------------"))
 	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat"))
@@ -583,35 +604,48 @@ func listenHotkeys() {
 		// VK_F1 = 0x70
 		if isKeyPressed(0x70) {
 			boxRendering = !boxRendering
+			playBeep(boxRendering)
 			updated = true
 		}
 		// VK_F2 = 0x71
 		if isKeyPressed(0x71) {
 			skeletonRendering = !skeletonRendering
+			playBeep(skeletonRendering)
 			updated = true
 		}
 		// VK_F3 = 0x72
 		if isKeyPressed(0x72) {
 			headCircle = !headCircle
+			playBeep(headCircle)
 			updated = true
 		}
 		// VK_F4 = 0x73
 		if isKeyPressed(0x73) {
 			teamCheck = !teamCheck
+			playBeep(teamCheck)
 			updated = true
 		}
 		// VK_F5 = 0x74
 		if isKeyPressed(0x74) {
 			healthBarRendering = !healthBarRendering
+			playBeep(healthBarRendering)
 			updated = true
 		}
 		// VK_F6 = 0x75
 		if isKeyPressed(0x75) {
 			nameRendering = !nameRendering
+			playBeep(nameRendering)
+			updated = true
+		}
+		// VK_F7 = 0x76
+		if isKeyPressed(0x76) {
+			distanceRendering = !distanceRendering
+			playBeep(distanceRendering)
 			updated = true
 		}
 		// VK_END = 0x23
 		if isKeyPressed(0x23) {
+			playBeep(false)
 			os.Exit(0)
 		}
 
@@ -719,16 +753,16 @@ func main() {
 
 		entities := getEntitiesInfo(procHandle, clientDll, screenWidth, screenHeight, offsets)
 		for _, entity := range entities {
-			if entity.Distance < 35 {
+			if entity.Distance < 0.8 {
 				continue
 			}
 			if skeletonRendering {
 				drawSkeleton(win.HDC(memhdc), bonePen, entity.Bones)
 			}
 			if entity.Team == 2 {
-				renderEntityInfo(win.HDC(memhdc), redPen, greenPen, outlinePen, bonePen, entity.Rect, entity.Health, entity.Name, entity.HeadPos)
+				renderEntityInfo(win.HDC(memhdc), redPen, greenPen, outlinePen, bonePen, entity.Rect, entity.Health, entity.Name, entity.HeadPos, entity.Distance)
 			} else {
-				renderEntityInfo(win.HDC(memhdc), bluePen, greenPen, outlinePen, bonePen, entity.Rect, entity.Health, entity.Name, entity.HeadPos)
+				renderEntityInfo(win.HDC(memhdc), bluePen, greenPen, outlinePen, bonePen, entity.Rect, entity.Health, entity.Name, entity.HeadPos, entity.Distance)
 			}
 		}
 		win.BitBlt(hdc, 0, 0, int32(screenWidth), int32(screenHeight), win.HDC(memhdc), 0, 0, win.SRCCOPY)
