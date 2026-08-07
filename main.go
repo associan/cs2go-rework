@@ -101,8 +101,9 @@ var (
 	frameDelay         uint32 = 15
 )
 
-// Kalemler ve Renk Seçimi (Global Scope)
+// Kalemler, Fırçalar ve Renk Seçimi (Global Scope)
 var (
+	bgBrush            uintptr
 	redPen             uintptr
 	greenPen           uintptr
 	bluePen            uintptr
