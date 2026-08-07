@@ -90,15 +90,29 @@ var (
 )
 
 var (
-	teamCheck           bool   = true
-	headCircle          bool   = true
-	skeletonRendering   bool   = true
-	boxRendering        bool   = true
-	nameRendering       bool   = true
-	healthBarRendering  bool   = true
-	healthTextRendering bool   = true
-	distanceRendering   bool   = true
-	frameDelay          uint32 = 15
+	teamCheck          bool   = true
+	headCircle         bool   = true
+	skeletonRendering  bool   = true
+	boxRendering       bool   = true
+	nameRendering      bool   = true
+	healthBarRendering bool   = true
+	healthTextRendering bool  = true
+	distanceRendering  bool   = true
+	frameDelay         uint32 = 15
+)
+
+// Kalemler ve Renk Seçimi (Global Scope)
+var (
+	redPen             uintptr
+	greenPen           uintptr
+	bluePen            uintptr
+	bonePen            uintptr
+	blueBonePen        uintptr
+	greenBonePen       uintptr
+	redBonePen         uintptr
+	outlinePen         uintptr
+	skeletonColor      uintptr
+	skeletonColorIndex int
 )
 
 func init() {
@@ -107,10 +121,8 @@ func init() {
 
 func playBeep(enabled bool) {
 	if enabled {
-		// Açıldığında yüksek frekanslı ince ses
 		beepProc.Call(800, 100)
 	} else {
-		// Kapandığında kalın ses
 		beepProc.Call(400, 100)
 	}
 }
@@ -372,7 +384,6 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 		tempEntity.Health = entityHealth
 		tempEntity.Team = entityTeam
 		tempEntity.Name = sanitizedNameStr
-		// Metre cinsinden mesafe hesabı
 		tempEntity.Distance = entityOrigin.Dist(localPlayerSceneOrigin) / 39.3700787
 		tempEntity.Position = Vector2{screenPosFeetX, screenPosFeetY}
 		tempEntity.Bones = entityBones
@@ -385,6 +396,7 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 }
 
 func drawSkeleton(hdc win.HDC, pen uintptr, bones map[string]Vector2) {
+	win.SelectObject(hdc, win.HGDIOBJ(skeletonColor))
 	win.SelectObject(hdc, win.HGDIOBJ(pen))
 	win.MoveToEx(hdc, int(bones["head"].X), int(bones["head"].Y), nil)
 	win.LineTo(hdc, int32(bones["neck_0"].X), int32(bones["neck_0"].Y))
@@ -567,16 +579,16 @@ func printStatus(label string, status bool) {
 func renderUI() {
 	fmt.Print("\033[H\033[2J")
 	fmt.Print(chalk.Green.Color(`
-          ____             
+          ____              
    ___ ___|___ \ ____  ___ 
  / __/ __| __) / _  |/ _ \
-| (__\__ \/ __/ (_| | (_) |
+| (xx\xx \/ xx/ (x| | (x) |
  \___|___/_____\\__, |\___/ 
-               |___/       
+                |___/       
 `))
-	fmt.Println(chalk.Yellow.Color("       by associan - v1.8\n"))
+	fmt.Println(chalk.Yellow.Color("       by associan - v1.8.1\n"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
-	fmt.Println(chalk.White.Color("          KISAYOL TUŞLARI (HOTKEYS)"))
+	fmt.Println(chalk.White.Color("           KISAYOL TUŞLARI (HOTKEYS)"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
 
 	printStatus("[F1] Box ESP", boxRendering)
@@ -588,7 +600,7 @@ func renderUI() {
 	printStatus("[F7] Distance Display", distanceRendering)
 
 	fmt.Println(chalk.Cyan.Color("------------------------------------------"))
-	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat"))
+	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat / Close Cheat"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
 }
 
@@ -601,6 +613,19 @@ func listenHotkeys() {
 	for {
 		updated := false
 
+		// VK_F8 = 0x77
+		if isKeyPressed(0x77) {
+			skeletonColorIndex = (skeletonColorIndex + 1) % 3
+			if skeletonColorIndex == 0 {
+				skeletonColor = blueBonePen
+			} else if skeletonColorIndex == 1 {
+				skeletonColor = greenBonePen
+			} else if skeletonColorIndex == 2 {
+				skeletonColor = redBonePen
+			}
+			playBeep(true)
+			updated = true
+		}
 		// VK_F1 = 0x70
 		if isKeyPressed(0x70) {
 			boxRendering = !boxRendering
@@ -695,42 +720,71 @@ func main() {
 		return
 	}
 
-	bgBrush, _, _ := createSolidBrush.Call(uintptr(0x000000))
+	var errCreate error
+	bgBrush, _, errCreate = createSolidBrush.Call(uintptr(0x000000))
 	if bgBrush == 0 {
-		logAndSleep("Error creating brush", fmt.Errorf("%v", win.GetLastError()))
+		logAndSleep("Error creating brush", errCreate)
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(bgBrush))
-	redPen, _, _ := createPen.Call(win.PS_SOLID, 1, 0x7a78ff)
+
+	redPen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7a78ff)
 	if redPen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(redPen))
-	greenPen, _, _ := createPen.Call(win.PS_SOLID, 1, 0x7dff78)
+
+	greenPen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7dff78)
 	if greenPen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(greenPen))
-	bluePen, _, _ := createPen.Call(win.PS_SOLID, 1, 0xff8e78)
+
+	bluePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0xff8e78)
 	if bluePen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(bluePen))
-	bonePen, _, _ := createPen.Call(win.PS_SOLID, 1, 0xffffff)
+
+	bonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0xffffff)
 	if bonePen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(bonePen))
-	outlinePen, _, _ := createPen.Call(win.PS_SOLID, 1, 0x000001)
+
+	blueBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7a78ff)
+	if blueBonePen == 0 {
+		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
+		return
+	}
+	defer win.DeleteObject(win.HGDIOBJ(blueBonePen))
+
+	greenBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7dff78)
+	if greenBonePen == 0 {
+		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
+		return
+	}
+	defer win.DeleteObject(win.HGDIOBJ(greenBonePen))
+
+	redBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0xff8e78)
+	if redBonePen == 0 {
+		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
+		return
+	}
+	defer win.DeleteObject(win.HGDIOBJ(redBonePen))
+
+	outlinePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x000000)
 	if outlinePen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
 	}
 	defer win.DeleteObject(win.HGDIOBJ(outlinePen))
+
+	skeletonColor = bonePen
 
 	font, _, _ := createFont.Call(12, 0, 0, 0, win.FW_HEAVY, 0, 0, 0, win.DEFAULT_CHARSET, win.OUT_DEFAULT_PRECIS, win.CLIP_DEFAULT_PRECIS, win.DEFAULT_QUALITY, win.DEFAULT_PITCH|win.FF_DONTCARE, 0)
 
