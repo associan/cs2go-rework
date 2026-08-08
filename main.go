@@ -600,6 +600,10 @@ func renderUI() {
 	printStatus("[F6] Player Name", nameRendering)
 	printStatus("[F7] Distance Display", distanceRendering)
 
+	colorNames := []string{"MAVİ", "YEŞİL", "KIRMIZI"}
+	currentColor := colorNames[skeletonColorIndex]
+	fmt.Printf("  %-25s %s\n", "[F8] Skeleton Color", chalk.Yellow.Color("["+currentColor+"]"))
+	
 	fmt.Println(chalk.Cyan.Color("------------------------------------------"))
 	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat / Close Cheat"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
