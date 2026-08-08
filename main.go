@@ -90,15 +90,15 @@ var (
 )
 
 var (
-	teamCheck          bool   = true
-	headCircle         bool   = true
-	skeletonRendering  bool   = true
-	boxRendering       bool   = true
-	nameRendering      bool   = true
-	healthBarRendering bool   = true
-	healthTextRendering bool  = true
-	distanceRendering  bool   = true
-	frameDelay         uint32 = 15
+	teamCheck           bool   = true
+	headCircle          bool   = true
+	skeletonRendering   bool   = true
+	boxRendering        bool   = true
+	nameRendering       bool   = true
+	healthBarRendering  bool   = true
+	healthTextRendering bool   = true
+	distanceRendering   bool   = true
+	frameDelay          uint32 = 15
 )
 
 // Kalemler, Fırçalar ve Renk Seçimi (Global Scope)
@@ -397,7 +397,6 @@ func getEntitiesInfo(procHandle windows.Handle, clientDll uintptr, screenWidth u
 }
 
 func drawSkeleton(hdc win.HDC, pen uintptr, bones map[string]Vector2) {
-	win.SelectObject(hdc, win.HGDIOBJ(skeletonColor))
 	win.SelectObject(hdc, win.HGDIOBJ(pen))
 	win.MoveToEx(hdc, int(bones["head"].X), int(bones["head"].Y), nil)
 	win.LineTo(hdc, int32(bones["neck_0"].X), int32(bones["neck_0"].Y))
@@ -524,7 +523,7 @@ func initWindow(screenWidth uintptr, screenHeight uintptr) win.HWND {
 		CbWndExtra:    0,
 		HInstance:     win.GetModuleHandle(nil),
 		HIcon:         win.LoadIcon(0, (*uint16)(unsafe.Pointer(uintptr(win.IDI_APPLICATION)))),
-		HCursor:       win.LoadCursor(0, (*uint16)(unsafe.Pointer(uintptr(win.IDC_ARROW)))),
+		HCursor:        win.LoadCursor(0, (*uint16)(unsafe.Pointer(uintptr(win.IDC_ARROW)))),
 		HbrBackground: win.COLOR_WINDOW,
 		LpszMenuName:  nil,
 		LpszClassName: className,
@@ -603,7 +602,7 @@ func renderUI() {
 	colorNames := []string{"MAVİ", "YEŞİL", "KIRMIZI"}
 	currentColor := colorNames[skeletonColorIndex]
 	fmt.Printf("  %-25s %s\n", "[F8] Skeleton Color", chalk.Yellow.Color("["+currentColor+"]"))
-	
+
 	fmt.Println(chalk.Cyan.Color("------------------------------------------"))
 	fmt.Println(chalk.Red.Color("  [END] Hileyi Kapat / Close Cheat"))
 	fmt.Println(chalk.Cyan.Color("=========================================="))
@@ -761,7 +760,7 @@ func main() {
 	}
 	defer win.DeleteObject(win.HGDIOBJ(bonePen))
 
-	blueBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7a78ff)
+	blueBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0xff8e78)
 	if blueBonePen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
@@ -775,7 +774,7 @@ func main() {
 	}
 	defer win.DeleteObject(win.HGDIOBJ(greenBonePen))
 
-	redBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0xff8e78)
+	redBonePen, _, _ = createPen.Call(win.PS_SOLID, 1, 0x7a78ff)
 	if redBonePen == 0 {
 		logAndSleep("Error creating pen", fmt.Errorf("%v", win.GetLastError()))
 		return
@@ -789,7 +788,7 @@ func main() {
 	}
 	defer win.DeleteObject(win.HGDIOBJ(outlinePen))
 
-	skeletonColor = bonePen
+	skeletonColor = blueBonePen
 
 	font, _, _ := createFont.Call(12, 0, 0, 0, win.FW_HEAVY, 0, 0, 0, win.DEFAULT_CHARSET, win.OUT_DEFAULT_PRECIS, win.CLIP_DEFAULT_PRECIS, win.DEFAULT_QUALITY, win.DEFAULT_PITCH|win.FF_DONTCARE, 0)
 
@@ -816,7 +815,7 @@ func main() {
 				continue
 			}
 			if skeletonRendering {
-				drawSkeleton(win.HDC(memhdc), bonePen, entity.Bones)
+				drawSkeleton(win.HDC(memhdc), skeletonColor, entity.Bones)
 			}
 			if entity.Team == 2 {
 				renderEntityInfo(win.HDC(memhdc), redPen, greenPen, outlinePen, bonePen, entity.Rect, entity.Health, entity.Name, entity.HeadPos, entity.Distance)
